@@ -56,11 +56,5 @@ runs:
           rgaav4|RGAAv4) TAGS="RGAAv4" ;;
           *) echo "::error::unknown standard '$STANDARD' (use wcag2a, wcag2aa, wcag21aa, wcag22aa, or RGAAv4)"; exit 1 ;;
         esac
-        # Options pour ignorer les erreurs SSL
-        CHROME_ARGS=()
-        CHROME_ARGS+=(--ignore-certificate-errors)
-        CHROME_ARGS+=(--ignore-ssl-errors)
-        CHROME_ARGS+=(--allow-insecure-localhost)
-        CHROME_ARGS+=(--allow-running-insecure-content)
-        npx --yes @axe-core/cli "$SCAN_URL" --tags "$TAGS" --save "$OUTPUT_JSON" --chrome-options "${CHROME_ARGS[*]}" "${DRIVER_ARGS[@]}" || true
+        npx --yes @axe-core/cli@4.9.1 "$SCAN_URL" --tags "$TAGS" --save "$OUTPUT_JSON" --chromedriver-path "$CHROMEWEBDRIVER/chromedriver" --chrome-options="--ignore-certificate-errors --allow-insecure-localhost --allow-running-insecure-content" "${DRIVER_ARGS[@]}" || true
         node "${{ github.action_path }}/dist/summary.js" "$OUTPUT_JSON" "$FAIL_ON"
