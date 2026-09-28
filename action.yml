@@ -113,9 +113,8 @@ runs:
 
             let driver;
             if (chromedriverPath && fs.existsSync(chromedriverPath)) {
-              // Use custom ChromeDriver path
-              const { ServiceBuilder } = require('selenium-webdriver/chrome');
-              const service = new ServiceBuilder(chromedriverPath).build();
+              // Use custom ChromeDriver path via chrome.ServiceBuilder
+              const service = new chrome.ServiceBuilder(chromedriverPath).build();
               driver = await new Builder()
                 .forBrowser('chrome')
                 .setChromeOptions(options)
@@ -164,6 +163,7 @@ runs:
             await driver.quit();
           } catch (error) {
             console.error('Selenium error:', error.message);
+            console.error(error.stack);
             process.exit(1);
           }
         })();
