@@ -36,12 +36,6 @@ runs:
         echo "=== DEBUG INFO ==="
         echo "Node.js version: $(node --version)"
         echo "npm version: $(npm --version)"
-        echo "ChromeDriver path: $CHROMEWEBDRIVER/chromedriver"
-        if [ -x "$CHROMEWEBDRIVER/chromedriver" ]; then
-          echo "ChromeDriver version: $($CHROMEWEBDRIVER/chromedriver --version 2>&1 || echo 'unknown')"
-        else
-          echo "ChromeDriver not found at $CHROMEWEBDRIVER/chromedriver"
-        fi
         CHROME_BIN=$(which google-chrome || which chromium-browser || which chromium || echo 'not found')
         echo "Chrome path: $CHROME_BIN"
         if [ "$CHROME_BIN" != "not found" ]; then
@@ -52,7 +46,7 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
-        npm install --no-save selenium-webdriver chromedriver axe-core
+        npm install --no-save @axe-core/puppeteer puppeteer
 
     - name: Run Axe Core Scanner
       shell: bash
@@ -61,86 +55,61 @@ runs:
         STANDARD: ${{ inputs.standard }}
         FAIL_ON: ${{ inputs.fail-on }}
         OUTPUT_JSON: ${{ inputs.output-json }}
-        CHROMEDRIVER_PATH: ${{ env.CHROMEWEBDRIVER }}/chromedriver
       run: |
         echo "Scanning URL: $SCAN_URL"
 
         # Map standard to axe-core tags
         case "$STANDARD" in
-          wcag2a)   TAGS="wcag2a,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
-          wcag2aa)  TAGS="wcag2a,wcag2aa,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
-          wcag21a)  TAGS="wcag2a,wcag21a,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
-          wcag21aa) TAGS="wcag2a,wcag2aa,wcag21a,wcag21aa,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
-          wcag22a)  TAGS="wcag2a,wcag21a,wcag22a,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
-          wcag22aa) TAGS="wcag2a,wcag2aa,wcag21a,wcag21aa,wcag22a,wcag22aa,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
-          rgaav4|RGAAv4) TAGS="RGAAv4,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
+          wcag2a)   TAGS="wcag2a" ;;
+          wcag2aa)  TAGS="wcag2a,wcag2aa" ;;
+          wcag21a)  TAGS="wcag2a,wcag21a" ;;
+          wcag21aa) TAGS="wcag2a,wcag2aa,wcag21a,wcag21aa" ;;
+          wcag22a)  TAGS="wcag2a,wcag21a,wcag22a" ;;
+          wcag22aa) TAGS="wcag2a,wcag2aa,wcag21a,wcag21aa,wcag22a,wcag22aa" ;;
+          rgaav4|RGAAv4) TAGS="RGAAv4" ;;
           *) echo "::error::unknown standard '$STANDARD' (use wcag2a, wcag2aa, wcag21aa, wcag22aa, or RGAAv4)"; exit 1 ;;
         esac
 
         echo "Using tags: $TAGS"
 
-        # Create a Node.js script to run axe with Selenium
         cat > run_axe.js << 'ENDOFSCRIPT'
-        const { Builder } = require('selenium-webdriver');
-        const chrome = require('selenium-webdriver/chrome');
+        const puppeteer = require('puppeteer');
         const fs = require('fs');
+        const { injectAxe, checkA11y } = require('@axe-core/puppeteer');
 
         (async () => {
           try {
-            const options = new chrome.Options();
-            options.setAcceptInsecureCerts(true);
-            options.addArguments(
-              '--ignore-certificate-errors',
-              '--allow-insecure-localhost',
-              '--allow-running-insecure-content',
-              '--headless',
-              '--no-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-gpu'
-            );
+            const browser = await puppeteer.launch({
+              headless: true,
+              args: [
+                '--ignore-certificate-errors',
+                '--allow-insecure-localhost',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu'
+              ]
+            });
 
-            const chromeBin = '/usr/bin/google-chrome';
-            if (fs.existsSync(chromeBin)) {
-              options.setChromeBinaryPath(chromeBin);
-            }
-
-            const driver = await new Builder()
-              .forBrowser('chrome')
-              .setChromeOptions(options)
-              .build();
-
+            const page = await browser.newPage();
             console.log('Loading URL:', process.env.SCAN_URL);
-            await driver.get(process.env.SCAN_URL);
+            await page.goto(process.env.SCAN_URL, { 
+              waitUntil: 'networkidle0',
+              timeout: 30000 
+            });
 
-            // Inject axe-core with proper escaping using JSON.stringify
-            const axeCore = fs.readFileSync(require.resolve('axe-core'), 'utf8');
-            const escapedAxeCore = JSON.stringify(axeCore);
-            await driver.executeScript(`
-              var script = document.createElement('script');
-              script.textContent = ${escapedAxeCore};
-              document.head.appendChild(script);
-            `);
+            // Inject axe-core
+            await injectAxe(page);
 
-            await driver.sleep(1000);
+            // Run accessibility check with specified tags
+            const results = await checkA11y(page, {
+              runOnly: process.env.TAGS ? process.env.TAGS.split(',') : undefined
+            });
 
-            const axeScript = `
-              var callback = arguments[arguments.length - 1];
-              axe.configure({ branding: { application: 'axe-core-action' } });
-              axe.run('${process.env.TAGS}').then(callback).catch(e => callback({error: e.message}));
-            `;
-
-            const results = await driver.executeAsyncScript(axeScript);
-
-            if (results.error) {
-              console.error('Axe error:', results.error);
-              await driver.quit();
-              process.exit(1);
-            }
-
+            // Save results
             fs.writeFileSync(process.env.OUTPUT_JSON, JSON.stringify([results]));
             console.log(`Saved results to ${process.env.OUTPUT_JSON}`);
 
-            if (results.violations?.length > 0) {
+            if (results.violations.length > 0) {
               console.log(`Found ${results.violations.length} violations:`);
               results.violations.forEach(v => {
                 console.log(`- ${v.id}: ${v.impact} (${v.nodes.length} nodes)`);
@@ -149,9 +118,9 @@ runs:
               console.log('No violations found!');
             }
 
-            await driver.quit();
+            await browser.close();
           } catch (error) {
-            console.error('Selenium error:', error.message);
+            console.error('Error:', error.message);
             console.error(error.stack);
             process.exit(1);
           }
