@@ -61,6 +61,7 @@ runs:
         STANDARD: ${{ inputs.standard }}
         FAIL_ON: ${{ inputs.fail-on }}
         OUTPUT_JSON: ${{ inputs.output-json }}
+        CHROMEDRIVER_PATH: ${{ env.CHROMEWEBDRIVER }}/chromedriver
       run: |
         echo "Scanning URL: $SCAN_URL"
 
@@ -83,7 +84,6 @@ runs:
         const { Builder } = require('selenium-webdriver');
         const chrome = require('selenium-webdriver/chrome');
         const fs = require('fs');
-        const path = require('path');
 
         (async () => {
           try {
@@ -106,27 +106,11 @@ runs:
               options.setChromeBinaryPath(chromeBin);
             }
 
-            // Set ChromeDriver path if available
-            const chromedriverPath = process.env.CHROMEWEBDRIVER ?
-              path.join(process.env.CHROMEWEBDRIVER, 'chromedriver') :
-              null;
-
-            let driver;
-            if (chromedriverPath && fs.existsSync(chromedriverPath)) {
-              // Use custom ChromeDriver path via chrome.ServiceBuilder
-              const service = new chrome.ServiceBuilder(chromedriverPath).build();
-              driver = await new Builder()
-                .forBrowser('chrome')
-                .setChromeOptions(options)
-                .setChromeService(service)
-                .build();
-            } else {
-              // Use default ChromeDriver
-              driver = await new Builder()
-                .forBrowser('chrome')
-                .setChromeOptions(options)
-                .build();
-            }
+            // ChromeDriver path is set via CHROMEDRIVER_PATH env var
+            const driver = await new Builder()
+              .forBrowser('chrome')
+              .setChromeOptions(options)
+              .build();
 
             console.log('Loading URL:', process.env.SCAN_URL);
             await driver.get(process.env.SCAN_URL);
