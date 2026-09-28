@@ -81,7 +81,7 @@ runs:
         echo "Using tags: $TAGS"
 
         set +e
-        npx --yes @axe-core/cli@4.9.1 "$SCAN_URL" --browser chrome --tags "$TAGS" --save "$OUTPUT_JSON" --chromedriver-path "$CHROMEWEBDRIVER/chromedriver" --chrome-options="acceptInsecureCerts=true" --verbose "${DRIVER_ARGS[@]}" > axe_debug.log 2>&1
+        npx --yes @axe-core/cli@4.9.1 "$SCAN_URL" --tags "$TAGS" --save "$OUTPUT_JSON" --chromedriver-path "$CHROMEWEBDRIVER/chromedriver" --chrome-path "/usr/bin/google-chrome" --chrome-options="--ignore-certificate-errors --allow-insecure-localhost --allow-running-insecure-content" --verbose "${DRIVER_ARGS[@]}" > axe_debug.log 2>&1
         AXE_EXIT_CODE=$?
         set -e
 
