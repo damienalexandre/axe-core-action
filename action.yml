@@ -46,7 +46,7 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
-        npm install --no-save @axe-core/puppeteer puppeteer
+        npm install --no-save @axe-core/puppeteer@4.9.0 puppeteer
 
     - name: Run Axe Core Scanner
       shell: bash
@@ -97,8 +97,8 @@ runs:
               timeout: 30000 
             });
 
-            // Run axe-core analysis with specified tags
-            const results = await axePuppeteer.analyze(page, {
+            // Use default export for @axe-core/puppeteer@4.9.0
+            const results = await axePuppeteer.default.analyze(page, {
               runOnly: process.env.TAGS ? process.env.TAGS.split(',') : undefined
             });
 
