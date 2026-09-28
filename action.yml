@@ -52,7 +52,7 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
-        npm install --no-save selenium-webdriver chrome-driver axe-core
+        npm install --no-save selenium-webdriver chromedriver axe-core
 
     - name: Run Axe Core Scanner
       shell: bash
