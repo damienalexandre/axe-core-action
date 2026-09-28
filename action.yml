@@ -28,7 +28,26 @@ runs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
+
+    - name: Debug Environment
+      shell: bash
+      run: |
+        echo "=== DEBUG INFO ==="
+        echo "Node.js version: $(node --version)"
+        echo "npm version: $(npm --version)"
+        echo "ChromeDriver path: $CHROMEWEBDRIVER/chromedriver"
+        if [ -x "$CHROMEWEBDRIVER/chromedriver" ]; then
+          echo "ChromeDriver version: $($CHROMEWEBDRIVER/chromedriver --version 2>&1 || echo 'unknown')"
+        else
+          echo "ChromeDriver not found at $CHROMEWEBDRIVER/chromedriver"
+        fi
+        CHROME_BIN=$(which google-chrome || which chromium-browser || which chromium || echo 'not found')
+        echo "Chrome path: $CHROME_BIN"
+        if [ "$CHROME_BIN" != "not found" ]; then
+          echo "Chrome version: $($CHROME_BIN --version 2>&1 || echo 'unknown')"
+        fi
+        echo "==================="
 
     - name: Run Axe Core Scanner
       shell: bash
@@ -38,14 +57,16 @@ runs:
         FAIL_ON: ${{ inputs.fail-on }}
         OUTPUT_JSON: ${{ inputs.output-json }}
       run: |
-        # GitHub-hosted runners expose a ChromeDriver that matches the preinstalled Chrome via
-        # $CHROMEWEBDRIVER; use it when present so the driver and browser versions cannot drift.
+        echo "Scanning URL: $SCAN_URL"
+
         DRIVER_ARGS=()
         if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -x "$CHROMEWEBDRIVER/chromedriver" ]; then
           DRIVER_ARGS=(--chromedriver-path "$CHROMEWEBDRIVER/chromedriver")
+          echo "Using ChromeDriver at: $CHROMEWEBDRIVER/chromedriver"
+        else
+          echo "ChromeDriver not found, using default"
         fi
-        # axe runs a rule when it carries ANY listed tag, and WCAG levels are cumulative, so a
-        # "wcag22aa" gate must include the 2.0/2.1 A and AA rule sets, not just the rules new in 2.2.
+
         case "$STANDARD" in
           wcag2a)   TAGS="wcag2a,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
           wcag2aa)  TAGS="wcag2a,wcag2aa,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
@@ -56,5 +77,35 @@ runs:
           rgaav4|RGAAv4) TAGS="RGAAv4,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media,best-practice" ;;
           *) echo "::error::unknown standard '$STANDARD' (use wcag2a, wcag2aa, wcag21aa, wcag22aa, or RGAAv4)"; exit 1 ;;
         esac
-        npx --yes @axe-core/cli@4.9.1 "$SCAN_URL" --tags "$TAGS" --save "$OUTPUT_JSON" --chromedriver-path "$CHROMEWEBDRIVER/chromedriver" --chrome-options="acceptInsecureCerts=true,args=[--ignore-certificate-errors,--allow-insecure-localhost]" "${DRIVER_ARGS[@]}" || true
-        node "${{ github.action_path }}/dist/summary.js" "$OUTPUT_JSON" "$FAIL_ON"
+
+        echo "Using tags: $TAGS"
+
+        set +e
+        npx --yes @axe-core/cli@4.9.1 "$SCAN_URL" --tags "$TAGS" --save "$OUTPUT_JSON" --chromedriver-path "$CHROMEWEBDRIVER/chromedriver" --chrome-options="acceptInsecureCerts=true,args=[--ignore-certificate-errors,--allow-insecure-localhost]" --verbose "${DRIVER_ARGS[@]}" > axe_debug.log 2>&1
+        AXE_EXIT_CODE=$?
+        set -e
+
+        echo "=== AXE-CORE OUTPUT ==="
+        cat axe_debug.log
+        echo "======================"
+
+        if [ -f "$OUTPUT_JSON" ]; then
+          echo "=== AXE RESULTS SUMMARY ==="
+          node -e "
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('$OUTPUT_JSON', 'utf8'));
+            console.log('URL scanned:', results[0]?.url || 'N/A');
+            console.log('Violations:', results[0]?.violations.length || 0);
+            if (results[0]?.violations.length > 0) {
+              results[0].violations.forEach(v => {
+                console.log(\`  - \${v.id}: \${v.impact} (\${v.nodes.length} nodes)\`);
+              });
+            }
+          "
+          echo "=========================="
+        else
+          echo "::error::Axe results file not found at $OUTPUT_JSON"
+        fi
+
+        node "${{ github.action_path }}/dist/summary.js" "$OUTPUT_JSON" "$FAIL_ON" || true
+        exit $AXE_EXIT_CODE
