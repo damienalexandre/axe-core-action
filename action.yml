@@ -75,7 +75,7 @@ runs:
         cat > run_axe.js << 'ENDOFSCRIPT'
         const puppeteer = require('puppeteer');
         const fs = require('fs');
-        const { injectAxe, checkA11y } = require('@axe-core/puppeteer');
+        const { setup, checkA11y } = require('@axe-core/puppeteer');
 
         (async () => {
           try {
@@ -97,8 +97,8 @@ runs:
               timeout: 30000 
             });
 
-            // Inject axe-core
-            await injectAxe(page);
+            // Setup axe-core (replaces injectAxe)
+            await setup(page);
 
             // Run accessibility check with specified tags
             const results = await checkA11y(page, {
