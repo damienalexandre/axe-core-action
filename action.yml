@@ -84,12 +84,13 @@ runs:
         const { Builder } = require('selenium-webdriver');
         const chrome = require('selenium-webdriver/chrome');
         const fs = require('fs');
+        const path = require('path');
 
         (async () => {
           try {
             // Configure Chrome with SSL ignoring
             const options = new chrome.Options();
-            options.setAcceptInsecureCerts(true);  // ✅ W3C capability for SSL
+            options.setAcceptInsecureCerts(true);
             options.addArguments(
               '--ignore-certificate-errors',
               '--allow-insecure-localhost',
@@ -114,6 +115,18 @@ runs:
 
             console.log('Loading URL:', process.env.SCAN_URL);
             await driver.get(process.env.SCAN_URL);
+
+            // Inject axe-core script into the page
+            const axeCorePath = require.resolve('axe-core');
+            const axeCore = fs.readFileSync(axeCorePath, 'utf8');
+            await driver.executeScript(`
+              var script = document.createElement('script');
+              script.textContent = ">${axeCore.replace(/\$/g, '\\$').replace(/\`/g, '\\\`').replace(/\n/g, '\\n')}";
+              document.head.appendChild(script);
+            `);
+
+            // Wait for axe to be loaded
+            await driver.sleep(1000);
 
             // Inject and run axe-core with the specified tags
             const axeScript = `
