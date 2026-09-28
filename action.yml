@@ -75,7 +75,7 @@ runs:
         cat > run_axe.js << 'ENDOFSCRIPT'
         const puppeteer = require('puppeteer');
         const fs = require('fs');
-        const { default: axe } = require('@axe-core/puppeteer');
+        const axePkg = require('@axe-core/puppeteer');
 
         (async () => {
           try {
@@ -97,8 +97,8 @@ runs:
               timeout: 30000 
             });
 
-            // Use destructured default export
-            const results = await axe.analyze(page, {
+            // Use axePkg.analyze directly (tested with 4.9.0)
+            const results = await axePkg.analyze(page, {
               runOnly: process.env.TAGS ? process.env.TAGS.split(',') : undefined
             });
 
