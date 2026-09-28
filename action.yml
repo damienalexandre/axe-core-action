@@ -43,6 +43,11 @@ runs:
         DRIVER_ARGS=()
         if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -x "$CHROMEWEBDRIVER/chromedriver" ]; then
           DRIVER_ARGS=(--chromedriver-path "$CHROMEWEBDRIVER/chromedriver")
+        else
+          # Install a compatible chromedriver version for Node.js 20
+          npm uninstall chromedriver@154.0.0 --no-save 2>/dev/null || true
+          npm install --no-save chromedriver@152.0.0
+          DRIVER_ARGS=(--chromedriver-path "$(npm root)/chromedriver/bin/chromedriver")
         fi
         # axe runs a rule when it carries ANY listed tag, and WCAG levels are cumulative, so a
         # "wcag22aa" gate must include the 2.0/2.1 A and AA rule sets, not just the rules new in 2.2.
@@ -56,5 +61,5 @@ runs:
           rgaav4|RGAAv4) TAGS="RGAAv4,cat.aria,cat.color,cat.forms,cat.keyboard,cat.images,cat.language,cat.name-role-value,cat.parsing,cat.semantics,cat.sensory-and-visual-cues,cat.structure,cat.tables,cat.time-and-media" ;;
           *) echo "::error::unknown standard '$STANDARD' (use wcag2a, wcag2aa, wcag21aa, wcag22aa, or RGAAv4)"; exit 1 ;;
         esac
-        npx --yes @axe-core/cli@4.9.1 "$SCAN_URL" --tags "$TAGS" --save "$OUTPUT_JSON" --chromedriver-path "$CHROMEWEBDRIVER/chromedriver" --chrome-options="acceptInsecureCerts=true" "${DRIVER_ARGS[@]}" || true
+        npx --yes @axe-core/cli@4.9.1 "$SCAN_URL" --tags "$TAGS" --save "$OUTPUT_JSON" --chromedriver-path "$(npm root)/chromedriver/bin/chromedriver" --chrome-options="acceptInsecureCerts=true" "${DRIVER_ARGS[@]}" || true
         node "${{ github.action_path }}/dist/summary.js" "$OUTPUT_JSON" "$FAIL_ON"
