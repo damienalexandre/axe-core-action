@@ -80,15 +80,13 @@ runs:
         echo "Using tags: $TAGS"
 
         # Create a Node.js script to run axe with Selenium
-        cat > run_axe.js << 'EOF'
+        cat > run_axe.js << 'ENDOFSCRIPT'
         const { Builder } = require('selenium-webdriver');
         const chrome = require('selenium-webdriver/chrome');
         const fs = require('fs');
-        const path = require('path');
 
         (async () => {
           try {
-            // Configure Chrome with SSL ignoring
             const options = new chrome.Options();
             options.setAcceptInsecureCerts(true);
             options.addArguments(
@@ -101,13 +99,11 @@ runs:
               '--disable-gpu'
             );
 
-            // Set Chrome binary path
             const chromeBin = '/usr/bin/google-chrome';
             if (fs.existsSync(chromeBin)) {
               options.setChromeBinaryPath(chromeBin);
             }
 
-            // ChromeDriver path is set via CHROMEDRIVER_PATH env var
             const driver = await new Builder()
               .forBrowser('chrome')
               .setChromeOptions(options)
@@ -116,19 +112,17 @@ runs:
             console.log('Loading URL:', process.env.SCAN_URL);
             await driver.get(process.env.SCAN_URL);
 
-            // Inject axe-core script into the page
-            const axeCorePath = require.resolve('axe-core');
-            const axeCore = fs.readFileSync(axeCorePath, 'utf8');
+            // Inject axe-core with proper escaping using JSON.stringify
+            const axeCore = fs.readFileSync(require.resolve('axe-core'), 'utf8');
+            const escapedAxeCore = JSON.stringify(axeCore);
             await driver.executeScript(`
               var script = document.createElement('script');
-              script.textContent = ">${axeCore.replace(/\$/g, '\\$').replace(/\`/g, '\\\`').replace(/\n/g, '\\n')}";
+              script.textContent = ${escapedAxeCore};
               document.head.appendChild(script);
             `);
 
-            // Wait for axe to be loaded
             await driver.sleep(1000);
 
-            // Inject and run axe-core with the specified tags
             const axeScript = `
               var callback = arguments[arguments.length - 1];
               axe.configure({ branding: { application: 'axe-core-action' } });
@@ -143,12 +137,10 @@ runs:
               process.exit(1);
             }
 
-            // Save results
             fs.writeFileSync(process.env.OUTPUT_JSON, JSON.stringify([results]));
             console.log(`Saved results to ${process.env.OUTPUT_JSON}`);
 
-            // Log violations
-            if (results.violations && results.violations.length > 0) {
+            if (results.violations?.length > 0) {
               console.log(`Found ${results.violations.length} violations:`);
               results.violations.forEach(v => {
                 console.log(`- ${v.id}: ${v.impact} (${v.nodes.length} nodes)`);
@@ -164,7 +156,6 @@ runs:
             process.exit(1);
           }
         })();
-        EOF
+        ENDOFSCRIPT
 
-        # Run the script
         node run_axe.js
