@@ -62,5 +62,5 @@ runs:
         CHROME_ARGS+=(--ignore-ssl-errors)
         CHROME_ARGS+=(--allow-insecure-localhost)
         CHROME_ARGS+=(--allow-running-insecure-content)
-        npx --yes @axe-core/cli "$SCAN_URL" --tags "$TAGS" --save "$OUTPUT_JSON" --chrome-flags "${CHROME_ARGS[*]}" "${DRIVER_ARGS[@]}" || true
+        npx --yes @axe-core/cli "$SCAN_URL" --tags "$TAGS" --save "$OUTPUT_JSON" --chrome-options "${CHROME_ARGS[*]}" "${DRIVER_ARGS[@]}" || true
         node "${{ github.action_path }}/dist/summary.js" "$OUTPUT_JSON" "$FAIL_ON"
